@@ -58,7 +58,8 @@ Game <- R6Class(
           }
           
           plot.new()
-          plot.window(xlim = range(tree_layout[, 1]), ylim = c(0, tree_depth - 1))
+          padding <- 0.5 # Adjust the padding value as needed
+          plot.window(xlim = range(tree_layout[, 1]), ylim = c(-padding, tree_depth - 1 + padding))
           axis(2, at = seq(0, tree_depth - 1, by = 1), labels = y_axis_labels)
           
           par(new = TRUE)
@@ -72,7 +73,7 @@ Game <- R6Class(
                edge.label.color = "black",
                rescale = FALSE, 
                xlim = range(tree_layout[, 1]), 
-               ylim = c(0, tree_depth - 1))
+               ylim = c(-padding, tree_depth - 1 + padding))
           
           mtext("Decision", side = 2, line = 3)
         }
