@@ -41,12 +41,15 @@ ui <- fluidPage(
 server <- function(input, output, session) {
   
   game_instance <- reactiveVal(NULL)
+  game_vectors <- reactiveVal(NULL)
+  error_message <- reactiveVal("")
   
   output$playerInputs <- renderUI({
     if (is.null(game_instance()) || !game_instance()$start_game_clicked) {
       tagList(
         textInput("Player1_Name", "Player 1 Name:", value = ""),
-        textInput("Player2_Name", "Player 2 Name:", value = "")
+        textInput("Player2_Name", "Player 2 Name:", value = ""),
+        uiOutput("errorMessage")
       )
     }
   })
@@ -57,16 +60,27 @@ server <- function(input, output, session) {
     }
   })
   
+  output$errorMessage <- renderUI({
+    if (error_message() != "") {
+      div(style = "color: red;", error_message())
+    }
+  })
+  
   observeEvent(input$startGame, {
-    if (!is.null(input$Player1_Name) && !is.null(input$Player2_Name)) {
+    if (is.null(input$Player1_Name) || input$Player1_Name == "" || 
+        is.null(input$Player2_Name) || input$Player2_Name == "") {
+      error_message("Player names cannot be empty. Please enter names for both players.")
+    } else if (nchar(input$Player1_Name) > 16 || nchar(input$Player2_Name) > 16) {
+      error_message("Player names cannot be longer than 16 characters. Please enter shorter names.")
+    } else {
+      error_message("")
       game_instance(Game$new(input$Player1_Name, input$Player2_Name, start_game_clicked = TRUE))
       game_vectors(GameVectors$new(input$Player1_Name, input$Player2_Name))
     }
   })
   
-  
-  observeEvent(input$startGame, {
-    if (game_instance()$start_game_clicked) {
+  observe({
+    if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
       output$addNodeInputs <- renderUI({
         tagList(
           actionButton("addNode", "Add Node"),
@@ -86,6 +100,7 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$addNode, {
+    req(game_instance())
     game_instance()$addDecisionAndEdge(
       input$rootNodeIndex, 
       input$decision, 
@@ -112,6 +127,7 @@ server <- function(input, output, session) {
     
     # render plot
     output$network_plot <- renderPlot({
+      req(game_instance())
       game_instance()$plotTree() 
     })
   })
@@ -122,6 +138,7 @@ server <- function(input, output, session) {
     updateTextInput(session, "Player1_Name", value = "")
     updateTextInput(session, "Player2_Name", value = "")
     output$addNodeInputs <- NULL  # Hide Add Node inputs
+    output$network_plot <- NULL   # Hide network plot
   })
   
   output$newGameButton <- renderUI({
