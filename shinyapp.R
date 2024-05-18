@@ -1,98 +1,142 @@
 library(shiny)
 library(igraph)
+library(R6)
+source("GameClass.R")
 
-# Define the UI
+# init the game instance
+game_instance <- reactiveVal(NULL)
+game_vectors <- reactiveVal(NULL)
+
+#############################################
+#                                           #
+#                 FRONTEND                  #
+#                                           #
+#############################################
 ui <- fluidPage(
-  titlePanel("Shiny App with Add Node Button"),
+  titlePanel("Strategies in Game Theory"),
   sidebarLayout(
     sidebarPanel(
-      actionButton("addNode", "Add Node"),
-      checkboxInput("lastNodeToggle", "Last Node", value = FALSE), # Toggle for Last Node
-      textInput("rootNodeIndex", "Root Node Index:", value = ""), # Input for Root Node Index
-      textInput("nodeIndex", "Node Index:", value = ""), # Input for Node Index
-      textInput("decision", "Decision:", value = ""), # Input for Decision
-      uiOutput("pointsInput_Player1"), # Placeholder for Points input for Player 1
-      uiOutput("pointsInput_Player2") # Placeholder for Points input for Player 2
+      uiOutput("playerInputs"),
+      uiOutput("startGameButton"),
+      uiOutput("addNodeInputs")
     ),
     mainPanel(
-      plotOutput("network_plot") # Plot of the graph
+      uiOutput("graph_and_heading")
+    )
+  ),
+  fluidRow(
+    column(6,
+           align = "left",
+           uiOutput("newGameButton")
     )
   )
 )
 
+
+#############################################
+#                                           #
+#                 BACKEND                   #
+#                                           #
+#############################################
 server <- function(input, output, session) {
-  # Variable to store the edges and edge labels
-  edges <- c()
-  edge_labels <- c()
   
-  # Variable to store the count of nodes
-  node_count <- reactiveVal(0)
+  game_instance <- reactiveVal(NULL)
+  
+  output$playerInputs <- renderUI({
+    if (is.null(game_instance()) || !game_instance()$start_game_clicked) {
+      tagList(
+        textInput("Player1_Name", "Player 1 Name:", value = ""),
+        textInput("Player2_Name", "Player 2 Name:", value = "")
+      )
+    }
+  })
+  
+  output$startGameButton <- renderUI({
+    if (is.null(game_instance()) || !game_instance()$start_game_clicked) {
+      actionButton("startGame", "Create Game")
+    }
+  })
+  
+  observeEvent(input$startGame, {
+    if (!is.null(input$Player1_Name) && !is.null(input$Player2_Name)) {
+      game_instance(Game$new(input$Player1_Name, input$Player2_Name, start_game_clicked = TRUE))
+      game_vectors(GameVectors$new(input$Player1_Name, input$Player2_Name))
+    }
+  })
+  
+  
+  observeEvent(input$startGame, {
+    if (game_instance()$start_game_clicked) {
+      output$addNodeInputs <- renderUI({
+        tagList(
+          actionButton("addNode", "Add Node"),
+          checkboxInput("lastNodeToggle", "Last Node", value = FALSE),
+          textInput("rootNodeIndex", "Root Node Index:", value = ""),
+          textInput("decision", "Decision:", value = ""),
+          conditionalPanel(
+            condition = "input.lastNodeToggle == true",
+            numericInput("points_Player1", paste("Points for", game_instance()$player1_name, ":"), value = 0),
+            numericInput("points_Player2", paste("Points for", game_instance()$player2_name, ":"), value = 0)
+          )
+        )
+      })
+    } else {
+      output$addNodeInputs <- NULL
+    }
+  })
   
   observeEvent(input$addNode, {
-    node_count(node_count() + 1) # Increment node count
+    game_instance()$addDecisionAndEdge(
+      input$rootNodeIndex, 
+      input$decision, 
+      input$lastNodeToggle, 
+      input$points_Player1, 
+      input$points_Player2
+    )
     
-    # Print statement after adding a new node
-    print("Node added:")
-    print(paste("Root Node Index:", input$rootNodeIndex))
-    print(paste("Node Index:", input$nodeIndex))
-    print(paste("Decision:", input$decision))
-  
+    game_vectors()$addDecisionAndEdge_Vector( 
+      input$rootNodeIndex, 
+      input$decision, 
+      input$lastNodeToggle, 
+      input$points_Player1, 
+      input$points_Player2
+    )
     
-    if (input$lastNodeToggle) {
-      print(paste("Points for Player 1:", input$points_Player1))
-      print(paste("Points for Player 2:", input$points_Player2))
-      
-      # Format the last node
-      last_node <- paste(input$nodeIndex, ". (", input$points_Player1, " | ", input$points_Player2, ")", sep = "")
-      edges <<- c(edges, input$rootNodeIndex, last_node)
-      edge_labels <<- c(edge_labels, input$decision)
-    } else {
-      edges <<- c(edges, input$rootNodeIndex, input$nodeIndex)
-      edge_labels <<- c(edge_labels, input$decision)
-    }
-    print(edges)
-    
-    # Create the graph object
-    g <- graph(edges, directed = TRUE)
-    
-    # Generate the layout
-    tree_layout <- layout_as_tree(g, root = "A")
-    
-    # Plot the graph
-    output$network_plot <- renderPlot({
-      plot(g, layout = tree_layout,
-           vertex.color = "lightblue",
-           vertex.size = 50,  # Adjust the size of the nodes here (default is 30)
-           vertex.label.color = "black",
-           edge.arrow.size = 0.5,
-           edge.color = "gray",
-           edge.label = edge_labels,
-           edge.label.color = "black")
-    }, height = 600, width = 800)
-    
-    # Clear the input fields after processing
     updateTextInput(session, "rootNodeIndex", value = "")
-    updateTextInput(session, "nodeIndex", value = "")
     updateTextInput(session, "decision", value = "")
     updateCheckboxInput(session, "lastNodeToggle", value = FALSE)
+    if (input$lastNodeToggle) {
+      updateNumericInput(session, "points_Player1", value = 0)
+      updateNumericInput(session, "points_Player2", value = 0)
+    }
     
-    # Observer for lastNodeToggle inside addNode
-    observeEvent(input$lastNodeToggle, {
-      if (input$lastNodeToggle) {
-        output$pointsInput_Player1 <- renderUI({
-          numericInput("points_Player1", "Points for Player 1:", value = 0) # Input for Points for Player 1
-        })
-        output$pointsInput_Player2 <- renderUI({
-          numericInput("points_Player2", "Points for Player 2:", value = 0) # Input for Points for Player 2
-        })
-      } else {
-        output$pointsInput_Player1 <- renderUI({})
-        output$pointsInput_Player2 <- renderUI({})
-      }
+    # render plot
+    output$network_plot <- renderPlot({
+      game_instance()$plotTree() 
     })
+  })
+  
+  observeEvent(input$newGame, {
+    game_instance(NULL)
+    game_vectors(NULL)
+    updateTextInput(session, "Player1_Name", value = "")
+    updateTextInput(session, "Player2_Name", value = "")
+    output$addNodeInputs <- NULL  # Hide Add Node inputs
+  })
+  
+  output$newGameButton <- renderUI({
+    if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
+      actionButton("newGame", "New Game")
+    } else {
+      NULL
+    }
+  })
+  
+  output$graph_and_heading <- renderUI({
+    tagList(
+      plotOutput("network_plot")
+    )
   })
 }
 
-
-# Run the application 
 shinyApp(ui = ui, server = server)
