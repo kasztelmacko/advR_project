@@ -25,13 +25,17 @@ ui <- fluidPage(
     )
   ),
   fluidRow(
-    column(6,
-           align = "left",
-           uiOutput("newGameButton")
+    column(12,
+           align = "center",
+           style = "margin-top: 20px;",
+           div(style = "background-color: #f8f9fa; padding: 10px;",
+               div(style = "display: inline-block; margin-right: 10px;", uiOutput("newGameButton")),
+               div(style = "display: inline-block; margin-right: 10px;", actionButton("aboutButton", "About")),
+               div(style = "display: inline-block;", actionButton("createdByButton", "Created By"))
+           )
     )
   )
 )
-
 
 #############################################
 #                                           #
@@ -153,6 +157,24 @@ server <- function(input, output, session) {
     tagList(
       plotOutput("network_plot")
     )
+  })
+  
+  observeEvent(input$aboutButton, {
+    showModal(modalDialog(
+      title = "About",
+      tags$iframe(src = "about.html", width = "100%", height = "600px", frameborder = 0),
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
+  observeEvent(input$createdByButton, {
+    showModal(modalDialog(
+      title = "Created By",
+      tags$iframe(src = "createdby.html", width = "100%", height = "600px", frameborder = 0),
+      easyClose = TRUE,
+      footer = NULL
+    ))
   })
 }
 
