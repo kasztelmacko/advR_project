@@ -64,11 +64,11 @@ Game <- R6Class(
           
           par(new = TRUE)
           plot(g, layout = tree_layout,
-               vertex.color = "lightblue",
+               vertex.color = "#A7C957",
                vertex.size = 40,
                vertex.label.color = "black",
                edge.arrow.size = 0.5,
-               edge.color = "gray",
+               edge.color = "black",
                edge.label = self$edge_labels,
                edge.label.color = "black",
                rescale = FALSE, 
@@ -78,9 +78,14 @@ Game <- R6Class(
           mtext("Decision", side = 2, line = 3)
         }
       }
+    },
+    
+    getEdges = function() {
+      return(self$edges)
     }
   )
 )
+
 
 GameVectors <- R6Class(
   "GameVectors",
