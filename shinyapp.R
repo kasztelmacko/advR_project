@@ -60,12 +60,12 @@ server <- function(input, output, session) {
   
   output$startGameButton <- renderUI({
     if (is.null(game_instance()) || !game_instance()$start_game_clicked) {
-      actionButton("startGame", "Create Game")
+      actionButton("startGame", "Create Game", style = "background-color: #BC4749; color: white;")
     }
   })
   
   output$errorMessage <- renderUI({
-    if (error_message() != "") {
+    if (!is.null(error_message()) && error_message() != "") {
       div(style = "color: red;", error_message())
     }
   })
@@ -76,12 +76,15 @@ server <- function(input, output, session) {
       error_message("Player names cannot be empty. Please enter names for both players.")
     } else if (nchar(input$Player1_Name) > 16 || nchar(input$Player2_Name) > 16) {
       error_message("Player names cannot be longer than 16 characters. Please enter shorter names.")
+    } else if (tolower(input$Player1_Name) == tolower(input$Player2_Name)) {
+      error_message("Player names cannot be the same. Please enter different names for both players.")
     } else {
       error_message("")
       game_instance(Game$new(input$Player1_Name, input$Player2_Name, start_game_clicked = TRUE))
       game_vectors(GameVectors$new(input$Player1_Name, input$Player2_Name))
     }
   })
+  
   
   observe({
     if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
@@ -105,35 +108,43 @@ server <- function(input, output, session) {
   
   observeEvent(input$addNode, {
     req(game_instance())
-    game_instance()$addDecisionAndEdge(
-      input$rootNodeIndex, 
-      input$decision, 
-      input$lastNodeToggle, 
-      input$points_Player1, 
-      input$points_Player2
-    )
+    existing_edges <- game_instance()$getEdges()
     
-    game_vectors()$addDecisionAndEdge_Vector( 
-      input$rootNodeIndex, 
-      input$decision, 
-      input$lastNodeToggle, 
-      input$points_Player1, 
-      input$points_Player2
-    )
-    
-    updateTextInput(session, "rootNodeIndex", value = "")
-    updateTextInput(session, "decision", value = "")
-    updateCheckboxInput(session, "lastNodeToggle", value = FALSE)
-    if (input$lastNodeToggle) {
-      updateNumericInput(session, "points_Player1", value = 0)
-      updateNumericInput(session, "points_Player2", value = 0)
+    # Check if the entered rootNodeIndex exists in the existing edges
+    if (length(existing_edges) > 0 && !input$rootNodeIndex %in% unlist(existing_edges)) {
+      error_message("Please provide an existing Node Index")
+    } else {
+      # If the rootNodeIndex is valid, proceed to add the node
+      game_instance()$addDecisionAndEdge(
+        input$rootNodeIndex, 
+        input$decision, 
+        input$lastNodeToggle, 
+        input$points_Player1, 
+        input$points_Player2
+      )
+      
+      game_vectors()$addDecisionAndEdge_Vector( 
+        input$rootNodeIndex, 
+        input$decision, 
+        input$lastNodeToggle, 
+        input$points_Player1, 
+        input$points_Player2
+      )
+      
+      updateTextInput(session, "rootNodeIndex", value = "")
+      updateTextInput(session, "decision", value = "")
+      updateCheckboxInput(session, "lastNodeToggle", value = FALSE)
+      if (input$lastNodeToggle) {
+        updateNumericInput(session, "points_Player1", value = 0)
+        updateNumericInput(session, "points_Player2", value = 0)
+      }
+      
+      # render plot
+      output$network_plot <- renderPlot({
+        req(game_instance())
+        game_instance()$plotTree() 
+      })
     }
-    
-    # render plot
-    output$network_plot <- renderPlot({
-      req(game_instance())
-      game_instance()$plotTree() 
-    })
   })
   
   observeEvent(input$newGame, {
@@ -143,11 +154,14 @@ server <- function(input, output, session) {
     updateTextInput(session, "Player2_Name", value = "")
     output$addNodeInputs <- NULL  # Hide Add Node inputs
     output$network_plot <- NULL   # Hide network plot
+    
+    # Clear the error message when starting a new game
+    error_message("")
   })
   
   output$newGameButton <- renderUI({
     if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
-      actionButton("newGame", "New Game")
+      actionButton("newGame", "Restart Game", style = "background-color: #BC4749; color: white;")
     } else {
       NULL
     }
