@@ -48,11 +48,13 @@ ui <- fluidPage(
 #                                           #
 #############################################
 server <- function(input, output, session) {
-  
+
+  # init the class instances
   game_instance <- reactiveVal(NULL)
   game_vectors <- reactiveVal(NULL)
   error_message <- reactiveVal("")
   
+  # render initial screen
   output$playerInputs <- renderUI({
     if (is.null(game_instance()) || !game_instance()$start_game_clicked) {
       tagList(
@@ -63,12 +65,14 @@ server <- function(input, output, session) {
     }
   })
   
+  # render start game button
   output$startGameButton <- renderUI({
     if (is.null(game_instance()) || !game_instance()$start_game_clicked) {
       actionButton("startGame", "Create Game", style = "background-color: #f45b69; color: white;")
     }
   })
   
+  # player names check for game start
   observeEvent(input$startGame, {
     if (is.null(input$Player1_Name) || input$Player1_Name == "" || 
         is.null(input$Player2_Name) || input$Player2_Name == "") {
@@ -77,6 +81,8 @@ server <- function(input, output, session) {
       error_message("Player names cannot be longer than 16 characters. Please enter shorter names.")
     } else if (tolower(input$Player1_Name) == tolower(input$Player2_Name)) {
       error_message("Player names cannot be the same. Please enter different names for both players.")
+    } else if (!grepl("^[a-zA-Z0-9]+$", input$Player1_Name) || !grepl("^[a-zA-Z0-9]+$", input$Player2_Name)) {
+      error_message("Player names can only consist of letters and numbers. Please enter valid names for both players.")
     } else {
       error_message("")
       game_instance(Game$new(input$Player1_Name, input$Player2_Name, start_game_clicked = TRUE))
@@ -84,12 +90,14 @@ server <- function(input, output, session) {
     }
   })
   
+  # error message creator
   output$errorMessage <- renderUI({
     if (!is.null(error_message()) && error_message() != "") {
       div(style = "color: red;", error_message())
     }
   })
   
+  # render Add Node UI elements
   observe({
     if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
       output$addNodeInputs <- renderUI({
@@ -110,15 +118,13 @@ server <- function(input, output, session) {
     }
   })
   
+  # adding Nodes to the game
   observeEvent(input$addNode, {
     req(game_instance())
     existing_edges <- game_instance()$getEdges()
-    
-    # Check if the entered rootNodeIndex exists in the existing edges
     if (length(existing_edges) > 0 && !input$rootNodeIndex %in% unlist(existing_edges)) {
       error_message("Please provide an existing Node Index")
     } else {
-      # If the rootNodeIndex is valid, proceed to add the node
       game_instance()$addDecisionAndEdge(
         input$rootNodeIndex, 
         input$decision, 
@@ -151,6 +157,7 @@ server <- function(input, output, session) {
     }
   })
   
+  # reset game after newGame is clicked
   observeEvent(input$newGame, {
     game_instance(NULL)
     game_vectors(NULL)
@@ -163,6 +170,7 @@ server <- function(input, output, session) {
     error_message("")
   })
   
+  # render newGame button
   output$newGameButton <- renderUI({
     if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
       actionButton("newGame", "Restart Game", style = "background-color: #f45b69; color: white;")
@@ -171,12 +179,14 @@ server <- function(input, output, session) {
     }
   })
   
+  # render plot 
   output$graph_and_heading <- renderUI({
     tagList(
       plotOutput("network_plot")
     )
   })
   
+  # render About button
   observeEvent(input$aboutButton, {
     showModal(modalDialog(
       title = "About",
@@ -186,6 +196,7 @@ server <- function(input, output, session) {
     ))
   })
   
+  # render CreatedBy button
   observeEvent(input$createdByButton, {
     showModal(modalDialog(
       title = "Created By",
@@ -195,6 +206,7 @@ server <- function(input, output, session) {
     ))
   })
   
+  # render calculate best strategy
   output$performBackwardInductionButton <- renderUI({
     req(game_instance())
     if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
@@ -204,16 +216,46 @@ server <- function(input, output, session) {
     }
   })
   
+  # show best strategy results
   observeEvent(input$performBackwardsInductionBtn, {
     req(game_instance())
     if (game_instance()$hasTerminalNode()) {
       optimal_paths <- game_instance()$performBackwardInduction()
       
-      output$optimalPaths <- renderText({
-        paste("Best path for", game_instance()$player1_name, ":", paste(optimal_paths$best_path_player1, collapse = " -> "), "\n",
-              "Max payoff for", game_instance()$player1_name, ":", optimal_paths$max_payoff_player1, "\n",
-              "Best path for", game_instance()$player2_name, ":", paste(optimal_paths$best_path_player2, collapse = " -> "), "\n",
-              "Max payoff for", game_instance()$player2_name, ":", optimal_paths$max_payoff_player2)
+      showModal(modalDialog(
+        title = "Best Strategy Results",
+        tabsetPanel(
+          tabPanel(
+            paste(game_instance()$player1_name, "strategy"),
+            tags$div(
+              tags$h2("Best path for", game_instance()$player1_name, ":"),
+              tags$h3(paste(optimal_paths$best_path_player1, collapse = " -> ")),
+              tags$h3("Max payoff for", game_instance()$player1_name, ":", optimal_paths$max_payoff_player1),
+              plotOutput("player1_plot")
+            )
+          ),
+          tabPanel(
+            paste(game_instance()$player2_name, "strategy"),
+            tags$div(
+              tags$h2("Best path for", game_instance()$player2_name, ":"),
+              tags$h3(paste(optimal_paths$best_path_player2, collapse = " -> ")),
+              tags$h3("Max payoff for", game_instance()$player2_name, ":", optimal_paths$max_payoff_player2),
+              plotOutput("player2_plot")
+            )
+          )
+        ),
+        easyClose = TRUE,
+        footer = NULL
+      ))
+      
+      output$player1_plot <- renderPlot({
+        req(game_instance())
+        game_instance()$plotTree()
+      })
+      
+      output$player2_plot <- renderPlot({
+        req(game_instance())
+        game_instance()$plotTree()
       })
     } else {
       showModal(modalDialog(
@@ -224,8 +266,7 @@ server <- function(input, output, session) {
       ))
     }
   })
+  
 }
-
-
 
 shinyApp(ui = ui, server = server)

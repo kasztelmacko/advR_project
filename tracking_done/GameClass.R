@@ -33,6 +33,8 @@ Game <- R6Class(
         self$node_data[[new_node]] <- list(points_Player1 = NULL, points_Player2 = NULL, decision_path = c())
       }
       self$edge_labels <- c(self$edge_labels, decision)
+      print(self$edges)
+      print(self$edge_labels)
     },
     
     getPathsToPayoffs = function() {
@@ -47,7 +49,6 @@ Game <- R6Class(
         }
         paths_to_payoffs[[payoff_key]] <- c(paths_to_payoffs[[payoff_key]], list(path))
       }
-      
       return(paths_to_payoffs)
     },
     
@@ -83,7 +84,7 @@ Game <- R6Class(
           }
           
           plot.new()
-          padding <- 0.5 # Adjust the padding value as needed
+          padding <- 0.5
           plot.window(xlim = range(tree_layout[, 1]), ylim = c(-padding, tree_depth - 1 + padding))
           axis(2, at = seq(0, tree_depth - 1, by = 1), labels = y_axis_labels)
           
@@ -92,10 +93,11 @@ Game <- R6Class(
                vertex.color = "#e4fde1",
                vertex.size = 40,
                vertex.label.color = "black",
-               edge.arrow.size = 0.5,
+               edge.arrow.size = 1,
                edge.color = "black",
                edge.label = self$edge_labels,
                edge.label.color = "black",
+               edge.label.bg = "#e4fde1",
                rescale = FALSE, 
                xlim = range(tree_layout[, 1]), 
                ylim = c(-padding, tree_depth - 1 + padding))
