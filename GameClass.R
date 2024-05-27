@@ -1,5 +1,5 @@
-library(igraph)
 library(R6)
+library(igraph)
 
 Game <- R6Class(
   "Game",
@@ -9,36 +9,65 @@ Game <- R6Class(
     player2_name = NULL,
     edges = NULL,
     edge_labels = NULL,
+    node_data = NULL,
     start_game_clicked = FALSE,
-    node_count = 0,
     
-    initialize = function(player1_name, player2_name, edges = c(), edge_labels = c(), start_game_clicked = FALSE, node_count = 0) {
+    initialize = function(player1_name, player2_name, edges = c(), edge_labels = c(), node_data = list(), start_game_clicked = FALSE) {
       self$player1_name <- player1_name
       self$player2_name <- player2_name
       self$edges <- edges
       self$edge_labels <- edge_labels
+      self$node_data <- node_data
       self$start_game_clicked <- start_game_clicked
-      self$node_count <- node_count
     },
     
     addDecisionAndEdge = function(root_node_index, decision, is_last_node = FALSE, points_Player1 = 0, points_Player2 = 0) {
+      next_letter <- if (length(self$edges) == 0) "B" else LETTERS[max(as.numeric(factor(substr(self$edges, 1, 1), levels = LETTERS))) + 1]
       if (is_last_node) {
-        next_letter <- if (length(self$edges) == 0) "B" else LETTERS[max(as.numeric(factor(substr(self$edges, 1, 1), levels = LETTERS))) + 1]
         last_node <- paste(next_letter, ". (", points_Player1, " | ", points_Player2, ")", sep = "")
         self$edges <- c(self$edges, root_node_index, last_node)
+        self$node_data[[last_node]] <- list(points_Player1 = points_Player1, points_Player2 = points_Player2, decision_path = c())
       } else {
-        next_letter <- if (length(self$edges) == 0) "B" else LETTERS[max(as.numeric(factor(substr(self$edges, 1, 1), levels = LETTERS))) + 1]
         new_node <- next_letter
         self$edges <- c(self$edges, root_node_index, new_node)
+        self$node_data[[new_node]] <- list(points_Player1 = NULL, points_Player2 = NULL, decision_path = c())
       }
       self$edge_labels <- c(self$edge_labels, decision)
+      print(self$edges)
+      print(self$edge_labels)
     },
     
-    resetGame = function() {
-      self$edges <- c()
-      self$edge_labels <- c()
-      self$start_game_clicked <- FALSE
-      self$node_count <- 0
+    getPathsToPayoffs = function() {
+      leaf_nodes <- names(self$node_data)[sapply(self$node_data, function(x) !is.null(x$points_Player1) && !is.null(x$points_Player2))]
+      paths_to_payoffs <- list()
+      
+      for (leaf in leaf_nodes) {
+        path <- self$backtrackPath(leaf)
+        payoff_key <- paste("(", self$node_data[[leaf]]$points_Player1, ", ", self$node_data[[leaf]]$points_Player2, ")", sep = "")
+        if (!payoff_key %in% names(paths_to_payoffs)) {
+          paths_to_payoffs[[payoff_key]] <- list()
+        }
+        paths_to_payoffs[[payoff_key]] <- c(paths_to_payoffs[[payoff_key]], list(path))
+      }
+      return(paths_to_payoffs)
+    },
+    
+    backtrackPath = function(leaf_node) {
+      path <- c()
+      nodes <- c()
+      current_node <- leaf_node
+      
+      while (current_node != "A") {
+        edge_index <- which(self$edges == current_node)
+        if (length(edge_index) == 0) break
+        edge_index <- edge_index[1] - 1
+        path <- c(self$edge_labels[ceiling(edge_index / 2)], path)
+        nodes <- c(current_node, nodes)
+        current_node <- self$edges[edge_index]
+      }
+      nodes <- c("A", nodes)
+      
+      return(list(decisions = path, nodes = nodes))
     },
     
     plotTree = function() {
@@ -58,19 +87,20 @@ Game <- R6Class(
           }
           
           plot.new()
-          padding <- 0.5 # Adjust the padding value as needed
+          padding <- 0.5
           plot.window(xlim = range(tree_layout[, 1]), ylim = c(-padding, tree_depth - 1 + padding))
           axis(2, at = seq(0, tree_depth - 1, by = 1), labels = y_axis_labels)
           
           par(new = TRUE)
           plot(g, layout = tree_layout,
-               vertex.color = "#A7C957",
+               vertex.color = "#e4fde1",
                vertex.size = 40,
                vertex.label.color = "black",
-               edge.arrow.size = 0.5,
+               edge.arrow.size = 1,
                edge.color = "black",
                edge.label = self$edge_labels,
                edge.label.color = "black",
+               edge.label.bg = "#e4fde1",
                rescale = FALSE, 
                xlim = range(tree_layout[, 1]), 
                ylim = c(-padding, tree_depth - 1 + padding))
@@ -82,10 +112,57 @@ Game <- R6Class(
     
     getEdges = function() {
       return(self$edges)
+    },
+    
+    hasTerminalNode = function() {
+      return(any(sapply(self$node_data, function(x) !is.null(x$points_Player1) && !is.null(x$points_Player2))))
+    },
+    
+    performBackwardInduction = function() {
+      paths_to_payoffs <- self$getPathsToPayoffs()
+      
+      all_paths <- list()
+      for (payoff_key in names(paths_to_payoffs)) {
+        paths <- paths_to_payoffs[[payoff_key]]
+        payoff_values <- as.numeric(strsplit(gsub("[()]", "", payoff_key), ", ")[[1]])
+        for (path in paths) {
+          all_paths <- c(all_paths, list(list(path = path, payoffs = payoff_values)))
+        }
+      }
+      
+      best_path_player1 <- NULL
+      best_nodes_player1 <- NULL
+      max_payoff_player1 <- -Inf
+      for (path_info in all_paths) {
+        if (path_info$payoffs[1] > max_payoff_player1) {
+          max_payoff_player1 <- path_info$payoffs[1]
+          best_path_player1 <- path_info$path$decisions
+          best_nodes_player1 <- path_info$path$nodes
+        }
+      }
+      
+      best_path_player2 <- NULL
+      best_nodes_player2 <- NULL
+      max_payoff_player2 <- -Inf
+      for (path_info in all_paths) {
+        if (path_info$payoffs[2] > max_payoff_player2) {
+          max_payoff_player2 <- path_info$payoffs[2]
+          best_path_player2 <- path_info$path$decisions
+          best_nodes_player2 <- path_info$path$nodes
+        }
+      }
+      
+      return(list(
+        best_path_player1 = best_path_player1,
+        best_nodes_player1 = best_nodes_player1,
+        max_payoff_player1 = max_payoff_player1,
+        best_path_player2 = best_path_player2,
+        best_nodes_player2 = best_nodes_player2,
+        max_payoff_player2 = max_payoff_player2
+      ))
     }
   )
 )
-
 
 GameVectors <- R6Class(
   "GameVectors",
@@ -98,8 +175,8 @@ GameVectors <- R6Class(
     payouts2 = NULL,
     i = 1,
     
-    initialize = function(player1_name, player2_name, edges = c(), edge_labels = c(), start_game_clicked = FALSE, node_count = 0, dec1 = c(), dec2 = c(), payouts1 = c(), payouts2 = c()) {
-      super$initialize(player1_name, player2_name, edges, edge_labels, start_game_clicked, node_count)
+    initialize = function(player1_name, player2_name, edges = c(), edge_labels = c(), node_data = list(), start_game_clicked = FALSE, dec1 = c(), dec2 = c(), payouts1 = c(), payouts2 = c()) {
+      super$initialize(player1_name, player2_name, edges, edge_labels, node_data, start_game_clicked)
       self$dec1 <- dec1
       self$dec2 <- dec2
       self$payouts1 <- payouts1
@@ -107,6 +184,8 @@ GameVectors <- R6Class(
     },
     
     addDecisionAndEdge_Vector = function(root_node_index, decision, is_last_node = FALSE, points_Player1 = 0, points_Player2 = 0) {
+      super$addDecisionAndEdge(root_node_index, decision, is_last_node, points_Player1, points_Player2)
+      
       if (self$i %% 2 == 1) {
         self$dec1 <- c(self$dec1, decision)
       } else {
@@ -116,13 +195,12 @@ GameVectors <- R6Class(
       
       if (is_last_node) {
         self$payouts1 <- c(self$payouts1, points_Player1)
-        print(self$payouts1)
         self$payouts2 <- c(self$payouts2, points_Player2)
-        print(self$payouts2)
       }
-      
-      node_index <- paste0(root_node_index, "_", length(self$edges) + 1)
+    },
+    
+    correlatePayoffsWithPaths = function() {
+      return(self$getPathsToPayoffs())
     }
   )
 )
-

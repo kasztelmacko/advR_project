@@ -1,11 +1,14 @@
 library(shiny)
 library(igraph)
 library(R6)
+
+# Source the GameClass.R file
 source("GameClass.R")
 
-# init the game instance
+# Initialize the game instance
 game_instance <- reactiveVal(NULL)
 game_vectors <- reactiveVal(NULL)
+test <- reactiveValues(value = list())
 
 #############################################
 #                                           #
@@ -21,7 +24,8 @@ ui <- fluidPage(
       uiOutput("addNodeInputs")
     ),
     mainPanel(
-      uiOutput("graph_and_heading")
+      uiOutput("graph_and_heading"),
+      verbatimTextOutput("optimalPaths")
     )
   ),
   fluidRow(
@@ -30,6 +34,7 @@ ui <- fluidPage(
            style = "margin-top: 20px;",
            div(style = "background-color: #f8f9fa; padding: 10px;",
                div(style = "display: inline-block; margin-right: 10px;", uiOutput("newGameButton")),
+               div(style = "display: inline-block; margin-right: 10px;", uiOutput("performBackwardInductionButton")),
                div(style = "display: inline-block; margin-right: 10px;", actionButton("aboutButton", "About")),
                div(style = "display: inline-block;", actionButton("createdByButton", "Created By"))
            )
@@ -43,11 +48,13 @@ ui <- fluidPage(
 #                                           #
 #############################################
 server <- function(input, output, session) {
-  
+
+  # init the class instances
   game_instance <- reactiveVal(NULL)
   game_vectors <- reactiveVal(NULL)
   error_message <- reactiveVal("")
   
+  # render initial screen
   output$playerInputs <- renderUI({
     if (is.null(game_instance()) || !game_instance()$start_game_clicked) {
       tagList(
@@ -58,18 +65,14 @@ server <- function(input, output, session) {
     }
   })
   
+  # render start game button
   output$startGameButton <- renderUI({
     if (is.null(game_instance()) || !game_instance()$start_game_clicked) {
-      actionButton("startGame", "Create Game", style = "background-color: #BC4749; color: white;")
+      actionButton("startGame", "Create Game", style = "background-color: #f45b69; color: white;")
     }
   })
   
-  output$errorMessage <- renderUI({
-    if (!is.null(error_message()) && error_message() != "") {
-      div(style = "color: red;", error_message())
-    }
-  })
-  
+  # player names check for game start
   observeEvent(input$startGame, {
     if (is.null(input$Player1_Name) || input$Player1_Name == "" || 
         is.null(input$Player2_Name) || input$Player2_Name == "") {
@@ -78,6 +81,8 @@ server <- function(input, output, session) {
       error_message("Player names cannot be longer than 16 characters. Please enter shorter names.")
     } else if (tolower(input$Player1_Name) == tolower(input$Player2_Name)) {
       error_message("Player names cannot be the same. Please enter different names for both players.")
+    } else if (!grepl("^[a-zA-Z0-9]+$", input$Player1_Name) || !grepl("^[a-zA-Z0-9]+$", input$Player2_Name)) {
+      error_message("Player names can only consist of letters and numbers. Please enter valid names for both players.")
     } else {
       error_message("")
       game_instance(Game$new(input$Player1_Name, input$Player2_Name, start_game_clicked = TRUE))
@@ -85,12 +90,19 @@ server <- function(input, output, session) {
     }
   })
   
+  # error message creator
+  output$errorMessage <- renderUI({
+    if (!is.null(error_message()) && error_message() != "") {
+      div(style = "color: red;", error_message())
+    }
+  })
   
+  # render Add Node UI elements
   observe({
     if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
       output$addNodeInputs <- renderUI({
         tagList(
-          actionButton("addNode", "Add Node"),
+          actionButton("addNode", "Add Node", style = "background-color: #456990; color: white;"),
           checkboxInput("lastNodeToggle", "Last Node", value = FALSE),
           textInput("rootNodeIndex", "Root Node Index:", value = ""),
           textInput("decision", "Decision:", value = ""),
@@ -106,15 +118,13 @@ server <- function(input, output, session) {
     }
   })
   
+  # adding Nodes to the game
   observeEvent(input$addNode, {
     req(game_instance())
     existing_edges <- game_instance()$getEdges()
-    
-    # Check if the entered rootNodeIndex exists in the existing edges
     if (length(existing_edges) > 0 && !input$rootNodeIndex %in% unlist(existing_edges)) {
       error_message("Please provide an existing Node Index")
     } else {
-      # If the rootNodeIndex is valid, proceed to add the node
       game_instance()$addDecisionAndEdge(
         input$rootNodeIndex, 
         input$decision, 
@@ -147,6 +157,7 @@ server <- function(input, output, session) {
     }
   })
   
+  # reset game after newGame is clicked
   observeEvent(input$newGame, {
     game_instance(NULL)
     game_vectors(NULL)
@@ -159,20 +170,23 @@ server <- function(input, output, session) {
     error_message("")
   })
   
+  # render newGame button
   output$newGameButton <- renderUI({
     if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
-      actionButton("newGame", "Restart Game", style = "background-color: #BC4749; color: white;")
+      actionButton("newGame", "Restart Game", style = "background-color: #f45b69; color: white;")
     } else {
       NULL
     }
   })
   
+  # render plot 
   output$graph_and_heading <- renderUI({
     tagList(
       plotOutput("network_plot")
     )
   })
   
+  # render About button
   observeEvent(input$aboutButton, {
     showModal(modalDialog(
       title = "About",
@@ -182,6 +196,7 @@ server <- function(input, output, session) {
     ))
   })
   
+  # render CreatedBy button
   observeEvent(input$createdByButton, {
     showModal(modalDialog(
       title = "Created By",
@@ -190,6 +205,72 @@ server <- function(input, output, session) {
       footer = NULL
     ))
   })
+  
+  # render calculate best strategy
+  output$performBackwardInductionButton <- renderUI({
+    req(game_instance())
+    if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
+      actionButton("performBackwardsInductionBtn", "Perform Backward Induction", style = "background-color: #456990; color: white;")
+    } else {
+      NULL
+    }
+  })
+  
+  # show best strategy results
+  observeEvent(input$performBackwardsInductionBtn, {
+    req(game_instance())
+    if (game_instance()$hasTerminalNode()) {
+      optimal_paths <- game_instance()$performBackwardInduction()
+      
+      showModal(modalDialog(
+        title = "Best Strategy Results",
+        tabsetPanel(
+          tabPanel(
+            paste(game_instance()$player1_name, "strategy"),
+            tags$div(
+              tags$h2("Best path for", game_instance()$player1_name, ":"),
+              tags$h3(paste(optimal_paths$best_path_player1, collapse = " -> ")),
+              tags$h3("Nodes: ", paste(optimal_paths$best_nodes_player1, collapse = " -> ")),
+              tags$h3("Max payoff for", game_instance()$player1_name, ":", optimal_paths$max_payoff_player1),
+              plotOutput("player1_plot")
+            )
+          ),
+          tabPanel(
+            paste(game_instance()$player2_name, "strategy"),
+            tags$div(
+              tags$h2("Best path for", game_instance()$player2_name, ":"),
+              tags$h3(paste(optimal_paths$best_path_player2, collapse = " -> ")),
+              tags$h3("Nodes: ", paste(optimal_paths$best_nodes_player2, collapse = " -> ")),
+              tags$h3("Max payoff for", game_instance()$player2_name, ":", optimal_paths$max_payoff_player2),
+              plotOutput("player2_plot")
+            )
+          )
+        ),
+        easyClose = TRUE,
+        footer = NULL
+      ))
+      
+      output$player1_plot <- renderPlot({
+        req(game_instance())
+        game_instance()$plotTree()
+      })
+      
+      output$player2_plot <- renderPlot({
+        req(game_instance())
+        game_instance()$plotTree()
+      })
+    } else {
+      showModal(modalDialog(
+        title = "Error",
+        "Add a tree with last nodes to perform this operation.",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+    }
+  })
+  
+  
+  
 }
 
 shinyApp(ui = ui, server = server)
