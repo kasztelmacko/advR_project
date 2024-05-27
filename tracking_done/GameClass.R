@@ -1,5 +1,5 @@
-library(igraph)
 library(R6)
+library(igraph)
 
 Game <- R6Class(
   "Game",
@@ -89,7 +89,7 @@ Game <- R6Class(
           
           par(new = TRUE)
           plot(g, layout = tree_layout,
-               vertex.color = "#A7C957",
+               vertex.color = "#e4fde1",
                vertex.size = 40,
                vertex.label.color = "black",
                edge.arrow.size = 0.5,
@@ -107,11 +107,55 @@ Game <- R6Class(
     
     getEdges = function() {
       return(self$edges)
+    },
+    
+    hasTerminalNode = function() {
+      return(any(grepl("\\(", self$edges)))
+    },
+    
+    performBackwardInduction = function() {
+      paths_to_payoffs <- self$getPathsToPayoffs()
+      
+      # Extract all paths and corresponding payoffs
+      all_paths <- list()
+      for (payoff_key in names(paths_to_payoffs)) {
+        paths <- paths_to_payoffs[[payoff_key]]
+        payoff_values <- as.numeric(strsplit(gsub("[()]", "", payoff_key), ", ")[[1]])
+        for (path in paths) {
+          all_paths <- c(all_paths, list(list(path = path, payoffs = payoff_values)))
+        }
+      }
+      
+      # Identify the path with the highest payoff for Player 1
+      best_path_player1 <- NULL
+      max_payoff_player1 <- -Inf
+      for (path_info in all_paths) {
+        if (path_info$payoffs[1] > max_payoff_player1) {
+          max_payoff_player1 <- path_info$payoffs[1]
+          best_path_player1 <- path_info$path
+        }
+      }
+      
+      # Identify the path with the highest payoff for Player 2
+      best_path_player2 <- NULL
+      max_payoff_player2 <- -Inf
+      for (path_info in all_paths) {
+        if (path_info$payoffs[2] > max_payoff_player2) {
+          max_payoff_player2 <- path_info$payoffs[2]
+          best_path_player2 <- path_info$path
+        }
+      }
+      
+      # Return the best paths for both players
+      return(list(
+        best_path_player1 = best_path_player1,
+        max_payoff_player1 = max_payoff_player1,
+        best_path_player2 = best_path_player2,
+        max_payoff_player2 = max_payoff_player2
+      ))
     }
   )
 )
-
-
 
 GameVectors <- R6Class(
   "GameVectors",
@@ -136,9 +180,9 @@ GameVectors <- R6Class(
       super$addDecisionAndEdge(root_node_index, decision, is_last_node, points_Player1, points_Player2)
       
       if (self$i %% 2 == 1) {
-       self$dec1 <- c(self$dec1, decision)
+        self$dec1 <- c(self$dec1, decision)
       } else {
-       self$dec2 <- c(self$dec2, decision)
+        self$dec2 <- c(self$dec2, decision)
       }
       self$i <- self$i + 1
       

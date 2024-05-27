@@ -1,9 +1,11 @@
 library(shiny)
 library(igraph)
 library(R6)
+
+# Source the GameClass.R file
 source("GameClass.R")
 
-# init the game instance
+# Initialize the game instance
 game_instance <- reactiveVal(NULL)
 game_vectors <- reactiveVal(NULL)
 test <- reactiveValues(value = list())
@@ -19,11 +21,11 @@ ui <- fluidPage(
     sidebarPanel(
       uiOutput("playerInputs"),
       uiOutput("startGameButton"),
-      uiOutput("addNodeInputs"),
-      actionButton("printPayoffPaths", "Print Payoff Paths", style = "background-color: #BC4749; color: white;")
+      uiOutput("addNodeInputs")
     ),
     mainPanel(
-      uiOutput("graph_and_heading")
+      uiOutput("graph_and_heading"),
+      verbatimTextOutput("optimalPaths")
     )
   ),
   fluidRow(
@@ -32,13 +34,13 @@ ui <- fluidPage(
            style = "margin-top: 20px;",
            div(style = "background-color: #f8f9fa; padding: 10px;",
                div(style = "display: inline-block; margin-right: 10px;", uiOutput("newGameButton")),
+               div(style = "display: inline-block; margin-right: 10px;", uiOutput("performBackwardInductionButton")),
                div(style = "display: inline-block; margin-right: 10px;", actionButton("aboutButton", "About")),
                div(style = "display: inline-block;", actionButton("createdByButton", "Created By"))
            )
     )
   )
 )
-
 
 #############################################
 #                                           #
@@ -63,13 +65,7 @@ server <- function(input, output, session) {
   
   output$startGameButton <- renderUI({
     if (is.null(game_instance()) || !game_instance()$start_game_clicked) {
-      actionButton("startGame", "Create Game", style = "background-color: #BC4749; color: white;")
-    }
-  })
-  
-  output$errorMessage <- renderUI({
-    if (!is.null(error_message()) && error_message() != "") {
-      div(style = "color: red;", error_message())
+      actionButton("startGame", "Create Game", style = "background-color: #f45b69; color: white;")
     }
   })
   
@@ -88,11 +84,17 @@ server <- function(input, output, session) {
     }
   })
   
+  output$errorMessage <- renderUI({
+    if (!is.null(error_message()) && error_message() != "") {
+      div(style = "color: red;", error_message())
+    }
+  })
+  
   observe({
     if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
       output$addNodeInputs <- renderUI({
         tagList(
-          actionButton("addNode", "Add Node"),
+          actionButton("addNode", "Add Node", style = "background-color: #456990; color: white;"),
           checkboxInput("lastNodeToggle", "Last Node", value = FALSE),
           textInput("rootNodeIndex", "Root Node Index:", value = ""),
           textInput("decision", "Decision:", value = ""),
@@ -163,7 +165,7 @@ server <- function(input, output, session) {
   
   output$newGameButton <- renderUI({
     if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
-      actionButton("newGame", "Restart Game", style = "background-color: #BC4749; color: white;")
+      actionButton("newGame", "Restart Game", style = "background-color: #f45b69; color: white;")
     } else {
       NULL
     }
@@ -193,11 +195,37 @@ server <- function(input, output, session) {
     ))
   })
   
-  observeEvent(input$printPayoffPaths, {
+  output$performBackwardInductionButton <- renderUI({
     req(game_instance())
-    payoff_paths <- game_instance()$getPathsToPayoffs()
-    print(payoff_paths)
+    if (!is.null(game_instance()) && game_instance()$start_game_clicked) {
+      actionButton("performBackwardsInductionBtn", "Perform Backward Induction", style = "background-color: #456990; color: white;")
+    } else {
+      NULL
+    }
+  })
+  
+  observeEvent(input$performBackwardsInductionBtn, {
+    req(game_instance())
+    if (game_instance()$hasTerminalNode()) {
+      optimal_paths <- game_instance()$performBackwardInduction()
+      
+      output$optimalPaths <- renderText({
+        paste("Best path for", game_instance()$player1_name, ":", paste(optimal_paths$best_path_player1, collapse = " -> "), "\n",
+              "Max payoff for", game_instance()$player1_name, ":", optimal_paths$max_payoff_player1, "\n",
+              "Best path for", game_instance()$player2_name, ":", paste(optimal_paths$best_path_player2, collapse = " -> "), "\n",
+              "Max payoff for", game_instance()$player2_name, ":", optimal_paths$max_payoff_player2)
+      })
+    } else {
+      showModal(modalDialog(
+        title = "Error",
+        "Add a tree with last nodes to perform this operation.",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+    }
   })
 }
+
+
 
 shinyApp(ui = ui, server = server)
