@@ -23,8 +23,9 @@ Game <- R6Class(
     
     addDecisionAndEdge = function(root_node_index, decision, is_last_node = FALSE, points_Player1 = 0, points_Player2 = 0) {
       next_letter <- if (length(self$edges) == 0) "B" else LETTERS[max(as.numeric(factor(substr(self$edges, 1, 1), levels = LETTERS))) + 1]
+      
       if (is_last_node) {
-        last_node <- paste(next_letter, ". (", points_Player1, " | ", points_Player2, ")", sep = "")
+        last_node <- paste(next_letter, "\n(", points_Player1, " | ", points_Player2, ")", sep = "")
         self$edges <- c(self$edges, root_node_index, last_node)
         self$node_data[[last_node]] <- list(points_Player1 = points_Player1, points_Player2 = points_Player2, decision_path = c())
       } else {
@@ -32,6 +33,7 @@ Game <- R6Class(
         self$edges <- c(self$edges, root_node_index, new_node)
         self$node_data[[new_node]] <- list(points_Player1 = NULL, points_Player2 = NULL, decision_path = c())
       }
+      
       self$edge_labels <- c(self$edge_labels, decision)
       print(self$edges)
       print(self$edge_labels)
@@ -70,7 +72,7 @@ Game <- R6Class(
       return(list(decisions = path, nodes = nodes))
     },
     
-    plotTree = function() {
+    plotTree = function(color_type = 1, best_nodes_player = c()) {
       if (!is.null(self$edges) && length(self$edges) > 0) {
         g <- graph(self$edges, directed = TRUE)
         
@@ -92,20 +94,33 @@ Game <- R6Class(
           axis(2, at = seq(0, tree_depth - 1, by = 1), labels = y_axis_labels)
           
           par(new = TRUE)
+          
+          vertex_colors <- rep("#dde5b6", length(V(g)))
+          if (color_type == 2 || color_type == 3) {
+            for (node in best_nodes_player) {
+              if (node %in% V(g)$name) {
+                vertex_colors[V(g)$name == node] <- "#adc178"
+              }
+            }
+          }
+          
           plot(g, layout = tree_layout,
-               vertex.color = "#e4fde1",
-               vertex.size = 40,
+               vertex.color = vertex_colors,
+               vertex.size = 60,
                vertex.label.color = "black",
+               vertex.label.cex = 1.5,
                edge.arrow.size = 1,
-               edge.color = "black",
+               edge.color = "#6b2737",
                edge.label = self$edge_labels,
                edge.label.color = "black",
-               edge.label.bg = "#e4fde1",
+               edge.label.bg = "#dde5b6",
+               edge.label.cex = 1.2,
                rescale = FALSE, 
                xlim = range(tree_layout[, 1]), 
                ylim = c(-padding, tree_depth - 1 + padding))
           
           mtext("Decision", side = 2, line = 3)
+          
         }
       }
     },

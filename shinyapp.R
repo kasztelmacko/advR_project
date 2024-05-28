@@ -5,11 +5,6 @@ library(R6)
 # Source the GameClass.R file
 source("GameClass.R")
 
-# Initialize the game instance
-game_instance <- reactiveVal(NULL)
-game_vectors <- reactiveVal(NULL)
-test <- reactiveValues(value = list())
-
 #############################################
 #                                           #
 #                 FRONTEND                  #
@@ -48,7 +43,7 @@ ui <- fluidPage(
 #                                           #
 #############################################
 server <- function(input, output, session) {
-
+  
   # init the class instances
   game_instance <- reactiveVal(NULL)
   game_vectors <- reactiveVal(NULL)
@@ -152,7 +147,7 @@ server <- function(input, output, session) {
       # render plot
       output$network_plot <- renderPlot({
         req(game_instance())
-        game_instance()$plotTree() 
+        game_instance()$plotTree(color_type = 1)
       })
     }
   })
@@ -228,20 +223,67 @@ server <- function(input, output, session) {
           tabPanel(
             paste(game_instance()$player1_name, "strategy"),
             tags$div(
-              tags$h2("Best path for", game_instance()$player1_name, ":"),
-              tags$h3(paste(optimal_paths$best_path_player1, collapse = " -> ")),
-              tags$h3("Nodes: ", paste(optimal_paths$best_nodes_player1, collapse = " -> ")),
-              tags$h3("Max payoff for", game_instance()$player1_name, ":", optimal_paths$max_payoff_player1),
+              class = "container-fluid",
+              tags$div(
+                class = "row",
+                tags$div(
+                  class = "col-sm-6 text-center",
+                  style = "background-color: #f8f9fa;",
+                  tags$h3("Best path:")
+                ),
+                tags$div(
+                  class = "col-sm-6 text-center",
+                  style = "background-color: #f8f9fa;",
+                  tags$h3("Max payoff:")
+                )
+              ),
+              tags$div(
+                class = "row",
+                tags$div(
+                  class = "col-sm-6 text-center fs-1",
+                  style = "background-color: #f8f9fa; ; color: #f45b69;",
+                  tags$h2(paste(optimal_paths$best_path_player1, collapse = " -> "))
+                ),
+                tags$div(
+                  class = "col-sm-6 text-center fs-1",
+                  style = "background-color: #f8f9fa; color: #f45b69;",
+                  tags$h2(optimal_paths$max_payoff_player1)
+                )
+              ),
               plotOutput("player1_plot")
             )
           ),
+          
           tabPanel(
             paste(game_instance()$player2_name, "strategy"),
             tags$div(
-              tags$h2("Best path for", game_instance()$player2_name, ":"),
-              tags$h3(paste(optimal_paths$best_path_player2, collapse = " -> ")),
-              tags$h3("Nodes: ", paste(optimal_paths$best_nodes_player2, collapse = " -> ")),
-              tags$h3("Max payoff for", game_instance()$player2_name, ":", optimal_paths$max_payoff_player2),
+              class = "container-fluid",
+              tags$div(
+                class = "row",
+                tags$div(
+                  class = "col-sm-6 text-center",
+                  style = "background-color: #f8f9fa;",
+                  tags$h3("Best path:")
+                ),
+                tags$div(
+                  class = "col-sm-6 text-center",
+                  style = "background-color: #f8f9fa;",
+                  tags$h3("Max payoff:")
+                )
+              ),
+              tags$div(
+                class = "row",
+                tags$div(
+                  class = "col-sm-6 text-center fs-1",
+                  style = "background-color: #f8f9fa; ; color: #f45b69;",
+                  tags$h2(paste(optimal_paths$best_path_player2, collapse = " -> "))
+                ),
+                tags$div(
+                  class = "col-sm-6 text-center fs-1",
+                  style = "background-color: #f8f9fa; ; color: #f45b69;",
+                  tags$h2(optimal_paths$max_payoff_player2)
+                )
+              ),
               plotOutput("player2_plot")
             )
           )
@@ -252,12 +294,12 @@ server <- function(input, output, session) {
       
       output$player1_plot <- renderPlot({
         req(game_instance())
-        game_instance()$plotTree()
+        game_instance()$plotTree(color_type = 2, best_nodes_player = optimal_paths$best_nodes_player1)
       })
       
       output$player2_plot <- renderPlot({
         req(game_instance())
-        game_instance()$plotTree()
+        game_instance()$plotTree(color_type = 3, best_nodes_player = optimal_paths$best_nodes_player2)
       })
     } else {
       showModal(modalDialog(
@@ -268,9 +310,6 @@ server <- function(input, output, session) {
       ))
     }
   })
-  
-  
-  
 }
 
 shinyApp(ui = ui, server = server)
