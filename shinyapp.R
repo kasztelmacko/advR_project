@@ -20,7 +20,8 @@ ui <- fluidPage(
     ),
     mainPanel(
       uiOutput("graph_and_heading"),
-      verbatimTextOutput("optimalPaths")
+      verbatimTextOutput("optimalPaths"),
+      tableOutput("decisionTable")
     )
   ),
   fluidRow(
@@ -46,7 +47,6 @@ server <- function(input, output, session) {
   
   # init the class instances
   game_instance <- reactiveVal(NULL)
-  game_vectors <- reactiveVal(NULL)
   error_message <- reactiveVal("")
   
   # render initial screen
@@ -81,7 +81,6 @@ server <- function(input, output, session) {
     } else {
       error_message("")
       game_instance(Game$new(input$Player1_Name, input$Player2_Name, start_game_clicked = TRUE))
-      game_vectors(GameVectors$new(input$Player1_Name, input$Player2_Name))
     }
   })
   
@@ -128,14 +127,6 @@ server <- function(input, output, session) {
         input$points_Player2
       )
       
-      game_vectors()$addDecisionAndEdge_Vector( 
-        input$rootNodeIndex, 
-        input$decision, 
-        input$lastNodeToggle, 
-        input$points_Player1, 
-        input$points_Player2
-      )
-      
       updateTextInput(session, "rootNodeIndex", value = "")
       updateTextInput(session, "decision", value = "")
       updateCheckboxInput(session, "lastNodeToggle", value = FALSE)
@@ -149,13 +140,23 @@ server <- function(input, output, session) {
         req(game_instance())
         game_instance()$plotTree(color_type = 1)
       })
+      
+      # render table
+      output$decisionTable <- renderTable({
+        req(game_instance())
+        if (game_instance()$hasTerminalNode()) {
+          game_instance()$showTable()
+        }
+        else {
+          NULL
+        }
+      })
     }
   })
   
   # reset game after newGame is clicked
   observeEvent(input$newGame, {
     game_instance(NULL)
-    game_vectors(NULL)
     updateTextInput(session, "Player1_Name", value = "")
     updateTextInput(session, "Player2_Name", value = "")
     output$addNodeInputs <- NULL  # Hide Add Node inputs
