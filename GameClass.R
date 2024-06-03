@@ -1,6 +1,7 @@
 library(R6)
 library(igraph)
 library(data.table)
+library(DT)
 
 Game <- R6Class(
   "Game",
@@ -104,7 +105,7 @@ Game <- R6Class(
           
           plot.new()
           padding <- 0.5
-          plot.window(xlim = range(tree_layout[, 1]), ylim = c(-padding, tree_depth - 1 + padding))
+          plot.window(xlim = range(tree_layout[, 1]) * 1.5, ylim = c(-padding, tree_depth - 1 + padding))
           axis(2, at = seq(0, tree_depth - 1, by = 1), labels = y_axis_labels)
           
           par(new = TRUE)
@@ -130,7 +131,7 @@ Game <- R6Class(
                edge.label.bg = "#dde5b6",
                edge.label.cex = 1.2,
                rescale = FALSE, 
-               xlim = range(tree_layout[, 1]), 
+               xlim = range(tree_layout[, 1]) * 1.5, 
                ylim = c(-padding, tree_depth - 1 + padding))
           
           mtext("Decision", side = 2, line = 3)
@@ -143,8 +144,8 @@ Game <- R6Class(
     showTable = function() {
       paths_to_payoffs <- self$getPathsToPayoffs()
       num_paths <- sum(lengths(paths_to_payoffs))
-      player1_name_payoff <- paste(self$player1_name, "Payoff")
-      player2_name_payoff <- paste(self$player2_name, "Payoff")
+      player1_name_payoff <- paste(self$player1_name, "payoff")
+      player2_name_payoff <- paste(self$player2_name, "payoff")
       
       table_data <- data.frame(
         "Decision Path" = character(num_paths),

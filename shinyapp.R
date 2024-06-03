@@ -1,7 +1,7 @@
 library(shiny)
 library(igraph)
 library(R6)
-
+library(formattable)
 # Source the GameClass.R file
 source("GameClass.R")
 
@@ -19,15 +19,35 @@ ui <- fluidPage(
       uiOutput("addNodeInputs")
     ),
     mainPanel(
-      uiOutput("graph_and_heading"),
-      verbatimTextOutput("optimalPaths"),
-      tableOutput("decisionTable")
+      style = "height: 90%;",
+      div(
+        style = "width: 100%; height: 60%;",
+        conditionalPanel(condition = "output.network_plot",
+                         h1("Graphical Representation")),
+        uiOutput("graph_and_heading")
+      ),
+      div(
+        style = "width: 100%; height: 10%;",
+      ),
+      div(
+        style = "width: 100%; height: 30%;",
+        conditionalPanel(condition = "output.decisionTable",
+                         h1("Strategic Representation")),
+                         br(),
+        tags$style(HTML("
+          #decisionTable table {
+            font-family: Arial, sans-serif;
+            font-size: 1.5em;
+          }
+        ")),
+        tableOutput("decisionTable")
+      )
     )
   ),
   fluidRow(
     column(12,
            align = "center",
-           style = "margin-top: 20px;",
+           style = "margin-top: 20px; position: fixed; bottom: 0; width: 100%;",
            div(style = "background-color: #f8f9fa; padding: 10px;",
                div(style = "display: inline-block; margin-right: 10px;", uiOutput("newGameButton")),
                div(style = "display: inline-block; margin-right: 10px;", uiOutput("performBackwardInductionButton")),
@@ -116,7 +136,15 @@ server <- function(input, output, session) {
   observeEvent(input$addNode, {
     req(game_instance())
     existing_edges <- game_instance()$getEdges()
-    if (length(existing_edges) > 0 && !input$rootNodeIndex %in% unlist(existing_edges)) {
+    
+    if (length(input$rootNodeIndex) != 1) {
+      error_message("Please provide a single Node Index")
+      return()
+    }
+    
+    if (length(existing_edges) == 0 && input$rootNodeIndex != "A") {
+      error_message("Please provide a Root Node Index of A")
+    } else if (length(existing_edges) > 0 && !input$rootNodeIndex %in% unlist(existing_edges)) {
       error_message("Please provide an existing Node Index")
     } else {
       game_instance()$addDecisionAndEdge(
@@ -146,13 +174,14 @@ server <- function(input, output, session) {
         req(game_instance())
         if (game_instance()$hasTerminalNode()) {
           game_instance()$showTable()
-        }
-        else {
+        } else {
           NULL
         }
       })
+      error_message("")
     }
   })
+  
   
   # reset game after newGame is clicked
   observeEvent(input$newGame, {
@@ -162,7 +191,6 @@ server <- function(input, output, session) {
     output$addNodeInputs <- NULL  # Hide Add Node inputs
     output$network_plot <- NULL   # Hide network plot
     
-    # Clear the error message when starting a new game
     error_message("")
   })
   
@@ -178,7 +206,7 @@ server <- function(input, output, session) {
   # render plot 
   output$graph_and_heading <- renderUI({
     tagList(
-      plotOutput("network_plot")
+      plotOutput("network_plot", height = "800px")
     )
   })
   
