@@ -240,6 +240,17 @@ server <- function(input, output, session) {
     }
   })
   
+  # render if solution is Nash Equilibrium
+  output$nashEquilibrium <- renderUI({
+    req(game_instance())
+    optimal_paths <- game_instance()$performBackwardInduction()
+    if (identical(optimal_paths$best_path_player1, optimal_paths$best_path_player2)) {
+      tags$h3("The solution is a Nash Equilibrium", style = "color: #adc178;")
+    } else {
+      tags$h3("The solution is not a Nash Equilibrium", style = "color: #6b2737;")
+    }
+  })
+  
   # show best strategy results
   observeEvent(input$performBackwardsInductionBtn, {
     req(game_instance())
@@ -247,7 +258,7 @@ server <- function(input, output, session) {
       optimal_paths <- game_instance()$performBackwardInduction()
       
       showModal(modalDialog(
-        title = "Best Strategy Results",
+        title = uiOutput("nashEquilibrium"),
         tabsetPanel(
           tabPanel(
             paste(game_instance()$player1_name, "strategy"),
